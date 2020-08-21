@@ -51,7 +51,7 @@ class db_manager_UST:
             else:
                 print(str(dt) + ': new date & new data')
                 self.db[self.col_price_name].insert_many(akw_pd_new)
-                self.insert_cusip_info_if_required(akw_pd_new)
+                self._insert_cusip_info_if_required(akw_pd_new)
                 self._update_confirmed_date(dt, False)
 
                 return
@@ -69,7 +69,7 @@ class db_manager_UST:
         areSame = self._are_same_price_data(akw_pd_ex, akw_pd_new)
 
         # in either case, update the cusip if missing
-        self.insert_cusip_info_if_required(akw_pd_new)
+        self._insert_cusip_info_if_required(akw_pd_new)
 
         if areSame:
             print(str(dt) + ': same data. to confirm')
@@ -85,8 +85,7 @@ class db_manager_UST:
             self._update_confirmed_date(dt, False)
             print('done')
             return
-
-
+            
     def _read_price_data_from_treasury(self, dt):
         df = read_hist_data_from_treasurydirectgov(dt)
         if df is None:
@@ -108,7 +107,7 @@ class db_manager_UST:
         df2 = pd.DataFrame(akw2).set_index(key)[to_compares]
         return np.max(np.abs(df1 - df2).values) < 0.000001
 
-    def insert_cusip_info_if_required(self, akw_price_data):
+    def _insert_cusip_info_if_required(self, akw_price_data):
         for kw_pd in akw_price_data:
             cusip = kw_pd['cusip']
             col = self.db[self.col_cusip_info]
@@ -118,3 +117,13 @@ class db_manager_UST:
                 kw = get_cusip_info(cusip)[0]
                 print(kw)
                 col.insert_one(kw)
+
+    def retrieve_as_of(self, dt):
+
+        df_p = pd.DataFrame(self.db[self.col_price_name].find({'date':dt})).drop(columns=['_id'])
+
+        df_s = pd.DataFrame([self.db[self.col_cusip_info].find_one({'cusip':cusip}) for cusip in df_p['cusip']]).drop(columns=['_id'])
+
+        df_p = pd.merge(df_p, df_s, how = 'left', on='cusip')
+        return df_p
+        
