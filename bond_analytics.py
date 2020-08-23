@@ -7,7 +7,7 @@ def QLDate(dt: datetime.datetime):
     return ql.Date(dt.day, dt.month, dt.year)
 
 kw_config = {
-    'MARKET BASED NOTE':{
+    'Note':{
         'frequency':ql.Period('6M'),
         'convention':ql.Unadjusted,
         'endOfMonth':True,
@@ -18,7 +18,7 @@ kw_config = {
         'faceAmount':100,
     }
 }
-kw_config['MARKET BASED BOND'] = kw_config['MARKET BASED NOTE']
+kw_config['Bond'] = kw_config['Note']
 
 class USConventional:
 

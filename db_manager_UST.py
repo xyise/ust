@@ -129,7 +129,12 @@ class db_manager_UST:
 
     def retrieve_as_of(self, dt):
 
-        df_p = pd.DataFrame(self.db[self.col_price_name].find({'date':dt})).drop(columns=['_id'])
+        price_data_found = self.db[self.col_price_name].find({'date':dt})
+
+        if price_data_found.count() == 0:
+            return None
+
+        df_p = pd.DataFrame(price_data_found).drop(columns=['_id'])
 
         df_s = pd.DataFrame([self.db[self.col_cusip_info].find_one({'cusip':cusip}) for cusip in df_p['cusip']]).drop(columns=['_id'])
 
