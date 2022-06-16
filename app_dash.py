@@ -22,7 +22,7 @@ server = app.server
 myDB = db_manager_UST()
 
 available_dates = np.array([r['Date'] for r in myDB.db[myDB.col_confirmed_date_name].find({})])
-np.sort(available_dates)
+available_dates = np.sort(available_dates)
 
 df_empty = pd.DataFrame({'x':[0], 'y':[0]})
 

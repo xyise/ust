@@ -4,7 +4,7 @@ import time
 import pandas as pd
 
 def run_me(final_date):
-    date_range = pd.date_range(start='2022/06/02', end=final_date)
+    date_range = pd.date_range(start='2022/05/02', end='2022/05/05')
 
     dn = db_manager_UST()
 
