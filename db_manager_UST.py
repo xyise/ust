@@ -8,13 +8,15 @@ from access_treasurydirectgov import *
 
 class db_manager_UST:
 
-    def __init__(self,  db_name='UST', host='mongodb://localhost', port=27017, confirm_thresholds_in_days=7):
+    def __init__(self,  db_name='UST', host='mongodb://localhost', port=27017, confirm_thresholds_in_days=7, 
+                temp_folder = '/home/youngsuklee/tmp/treasurydirectgov_selenium'):
 
         # set up the mongo db
         self.db_client = mdb.MongoClient(host=host, port=port)
         self.db_name = db_name
         self.db = self.db_client[db_name]
         self.confirm_thresholds_in_days = confirm_thresholds_in_days
+        self.temp_folder = temp_folder
 
         self.col_cusip_info = 'cusip info'
         self.col_price_name = 'price data'
@@ -87,7 +89,7 @@ class db_manager_UST:
 
 
     def _read_price_data_from_treasury(self, dt):
-        df = read_hist_data_from_treasurydirectgov(dt)
+        df = read_hist_data_from_treasurydirectgov(dt, temp_folder = self.temp_folder)
         if df is None:
             return None
 
@@ -129,11 +131,11 @@ class db_manager_UST:
 
     def retrieve_as_of(self, dt):
 
-        price_data_found = self.db[self.col_price_name].find({'date':dt})
-
-        if price_data_found.count() == 0:
+        query = {'date':dt}
+        if self.db[self.col_price_name].count_documents(query) == 0:
             return None
 
+        price_data_found = self.db[self.col_price_name].find(query)
         df_p = pd.DataFrame(price_data_found).drop(columns=['_id'])
 
         df_s = pd.DataFrame([self.db[self.col_cusip_info].find_one({'cusip':cusip}) for cusip in df_p['cusip']]).drop(columns=['_id'])

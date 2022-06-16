@@ -1,8 +1,16 @@
+import io, os, shutil
+from time import sleep, time
 import pandas as pd
 import lxml.html as lh
 import requests
 import json
 import datetime
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait as WDW
+
 
 kw_security_type_to_cusip_type = {
     'MARKET BASED NOTE': 'Note',
@@ -14,7 +22,7 @@ kw_security_type_to_cusip_type = {
 
 a_cusip_keys = ['cusip', 'issueDate', 'securityType', 'securityTerm', 'maturityDate', 'interestRate', 'interestPaymentFrequency', 'spread', 'type']
 
-def read_hist_data_from_treasurydirectgov(dt):
+def read_hist_data_from_treasurydirectgov_deprecated(dt):
     """get historical data from treasurydirect.gov
 
         they should provide the data on the following columns: 
@@ -65,6 +73,92 @@ def read_hist_data_from_treasurydirectgov(dt):
     df = parse_and_clean(df)
 
     return df
+
+url_price_date = r'https://www.treasurydirect.gov/GA-FI/FedInvest/selectSecurityPriceDate'
+url_price_detail = r'https://www.treasurydirect.gov/GA-FI/FedInvest/securityPriceDetail'
+
+def wait_until(somepredicate, timeout, period=0.25, *args, **kwargs):
+  mustend = time() + timeout
+  while time() < mustend:
+    if somepredicate(*args, **kwargs): return True
+    sleep(period)
+  return False
+
+
+def read_hist_data_from_treasurydirectgov(
+    dt: datetime.datetime, 
+    temp_folder, 
+    temp_download_folder_tag = "default",
+    run_headless = True,
+    chromedriver_path = None):
+
+    dn_folder = os.path.join(temp_folder, temp_download_folder_tag + '_' + dt.strftime('%Y%m%d') + '_' + str(int(time())))
+    if os.path.exists(dn_folder):
+        raise Exception('download folder ' + dn_folder + " already exists. Something is not quite right.")
+    os.makedirs(dn_folder)
+
+    options = webdriver.ChromeOptions()
+    if run_headless:
+        options.add_argument('--headless')
+    prefs = {"download.default_directory":dn_folder}    
+    options.add_experimental_option("prefs", prefs)
+
+    if chromedriver_path is None:
+        driver = webdriver.Chrome(options=options)
+    else:
+        driver = webdriver.Chrome(executable_path=chromedriver_path, options=options)
+
+    wait_time_out = 15
+    wait_variable = WDW(driver, wait_time_out)
+
+    # set the date
+    print('setting the date ' + str(dt))
+    driver.get(url_price_date)
+    box_m = wait_variable.until(EC.presence_of_element_located((By.ID, 'priceDate.month')))
+    box_m.clear()
+    box_m.send_keys(dt.month)
+
+    box_d = wait_variable.until(EC.presence_of_element_located((By.ID, 'priceDate.day')))
+    box_d.clear()
+    box_d.send_keys(dt.day)
+
+    box_y = wait_variable.until(EC.presence_of_element_located((By.ID, 'priceDate.year')))
+    box_y.clear()
+    box_y.send_keys(dt.year)
+
+    btn_sbmt = wait_variable.until(EC.presence_of_element_located((By.NAME, 'submit')))
+    btn_sbmt.click()
+
+    # wait until the price detail site
+    EC.url_to_be(url_price_detail)
+
+    print('going to the data paging')
+    btn_csv = wait_variable.until(EC.presence_of_element_located((By.NAME, 'csv')))
+    print('downloading csv')
+    btn_csv.click()
+
+    dn_file = os.path.join(dn_folder, 'securityprice.csv')
+
+    wait_until(lambda : os.path.exists(dn_file), timeout = 5.0)
+    sleep(0.1) # sleep another interval just in case. 
+
+    columns = ['CUSIP', 'SECURITY TYPE', 'RATE', 'MATURITY DATE', 'CALL DATE', 'BUY', 'SELL', 'END OF DAY']
+    with open(dn_file, 'r') as f:
+        csv_str = f.read().strip()
+
+    print('deleting the downfolder: ' + dn_folder)
+    shutil.rmtree(dn_folder)
+    # ensure to remove the folder before sending the data
+    wait_until(lambda : not os.path.exists(dn_folder), timeout = 5.0)
+
+    # process the data
+    if csv_str == '':
+        return None
+    else:
+        df = pd.read_csv(io.StringIO(csv_str), header=None)
+        df.columns = columns
+        df = parse_and_clean(df)
+        return df
 
 def parse_and_clean(df):
     """parse the raw data from the site and remove data if not clean
